@@ -1,77 +1,129 @@
-#!/bin/sh
+#!/bin/bash
 
-wget -O loader.sh https://raw.githubusercontent.com/BidyutRoy2/Swisstronic-Task-3/main/loader.sh && chmod +x loader.sh && ./loader.sh
-curl -s https://raw.githubusercontent.com/BidyutRoy2/Swisstronic-Task-3/main/logo.sh | bash
-sleep 4
+print_blue() {
+    echo -e "\033[34m$1\033[0m"
+}
 
-sudo apt-get update && sudo apt-get upgrade -y
-clear
+print_red() {
+    echo -e "\033[31m$1\033[0m"
+}
 
-echo "Installing dependencies..."
-npm install --save-dev hardhat
-npm install dotenv
-npm install @swisstronik/utils
-npm install @openzeppelin/contracts
-echo "Installation completed."
+print_green() {
+    echo -e "\033[32m$1\033[0m"
+}
 
-echo "Creating a Hardhat project..."
+print_pink() {
+    echo -e "\033[95m$1\033[0m"
+}
+
+prompt_for_input() {
+    read -p "$1" input
+    echo $input
+}
+
+print_blue "Installing Hardhat and necessary dependencies..."
+echo
+npm install --save-dev hardhat @nomicfoundation/hardhat-toolbox
+echo
+
+print_blue "Removing default package.json file..."
+echo
+rm package.json
+echo
+
+print_blue "Creating package.json file again..."
+echo
+cat <<EOL > package.json
+{
+  "name": "hardhat-project",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^3.0.0",
+    "hardhat": "^2.17.1"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.0",
+    "@swisstronik/utils": "^1.2.1"
+  }
+}
+EOL
+
+print_blue "Initializing Hardhat project..."
 npx hardhat
+echo
+print_blue "Removing the default Hardhat configuration file..."
+echo
+rm hardhat.config.js
+echo
+read -p "Enter your wallet private key: " PRIVATE_KEY
 
-rm -f contracts/Lock.sol
-echo "Lock.sol removed."
+if [[ $PRIVATE_KEY != 0x* ]]; then
+  PRIVATE_KEY="0x$PRIVATE_KEY"
+fi
 
-echo "Hardhat project created."
-
-echo "Installing Hardhat toolbox..."
-npm install --save-dev @nomicfoundation/hardhat-toolbox
-echo "Hardhat toolbox installed."
-
-echo "Creating .env file..."
-read -p "Enter your private key: " PRIVATE_KEY
-echo "PRIVATE_KEY=$PRIVATE_KEY" > .env
-echo ".env file created."
-
-echo "Configuring Hardhat..."
 cat <<EOL > hardhat.config.js
 require("@nomicfoundation/hardhat-toolbox");
-require("dotenv").config();
 
 module.exports = {
   solidity: "0.8.20",
   networks: {
     swisstronik: {
       url: "https://json-rpc.testnet.swisstronik.com/",
-      accounts: [\`0x\${process.env.PRIVATE_KEY}\`],
+      accounts: ["$PRIVATE_KEY"],
     },
   },
 };
 EOL
-echo "Hardhat configuration completed."
 
-read -p "Enter the NFT name: " NFT_NAME
-read -p "Enter the NFT symbol: " NFT_SYMBOL
+print_blue "Hardhat configuration file has been updated."
+echo
 
-echo "Creating NFT.sol contract..."
-mkdir -p contracts
+rm -f contracts/Lock.sol
+sleep 2
+
+echo
+print_pink "Enter NFT NAME:"
+read -p "" NFT_NAME
+echo
+print_pink "Enter NFT SYMBOL:"
+read -p "" NFT_SYMBOL
+echo
 cat <<EOL > contracts/NFT.sol
-// SPDX-License-Identifier: MIT
-// Compatible with OpenZeppelin Contracts ^5.0.0
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract TestNFT is ERC721, ERC721Burnable {
-    constructor()
+contract PrivateNFT is ERC721, ERC721Burnable, Ownable {
+    constructor(address initialOwner)
         ERC721("$NFT_NAME","$NFT_SYMBOL")
+        Ownable(initialOwner)
     {}
 
-    function safeMint(address to, uint256 tokenId) public {
+    function safeMint(address to, uint256 tokenId) public onlyOwner {
         _safeMint(to, tokenId);
+    }
+
+    function balanceOf(address owner) public view override returns (uint256) {
+        require(msg.sender == owner, "PrivateNFT: msg.sender != owner");
+        return super.balanceOf(owner);
+    }
+
+    function ownerOf(uint256 tokenId) public view override returns (address) {
+        address owner = super.ownerOf(tokenId);
+        require(msg.sender == owner, "PrivateNFT: msg.sender != owner");
+        return owner;
+    }
+
+    function tokenURI(uint256 tokenId) public view override returns (string memory) {
+        address owner = super.ownerOf(tokenId);
+        require(msg.sender == owner, "PrivateNFT: msg.sender != owner");
+        return super.tokenURI(tokenId);
     }
 }
 EOL
-echo "NFT.sol contract created."
+echo "PrivateNFT.sol contract created."
 
 echo "Compiling the contract..."
 npx hardhat compile
@@ -84,7 +136,9 @@ const hre = require("hardhat");
 const fs = require("fs");
 
 async function main() {
-  const contract = await hre.ethers.deployContract("TestNFT");
+  const [deployer] = await hre.ethers.getSigners();
+  const contractFactory = await hre.ethers.getContractFactory("PrivateNFT");
+  const contract = await contractFactory.deploy(deployer.address);
   await contract.waitForDeployment();
   const deployedContract = await contract.getAddress();
   fs.writeFileSync("contract.txt", deployedContract);
@@ -122,7 +176,7 @@ const sendShieldedTransaction = async (signer, destination, data, value) => {
 async function main() {
   const contractAddress = fs.readFileSync("contract.txt", "utf8").trim();
   const [signer] = await hre.ethers.getSigners();
-  const contractFactory = await hre.ethers.getContractFactory("TestNFT");
+  const contractFactory = await hre.ethers.getContractFactory("PrivateNFT");
   const contract = contractFactory.attach(contractAddress);
   const functionName = "safeMint";
   const safeMintTx = await sendShieldedTransaction(
@@ -146,6 +200,15 @@ echo "Minting NFT..."
 npx hardhat run scripts/mint.js --network swisstronik
 echo "NFT minted."
 
+echo
+print_green "Copy the above Tx URL and save it somewhere, you need to submit it on Testnet page"
+echo
+sed -i 's/0x[0-9a-fA-F]*,\?\s*//g' hardhat.config.js
+echo
+print_blue "PRIVATE_KEY has been removed from hardhat.config.js."
+echo
+print_blue "Pushing these files to your github Repo link"
+git add . && git commit -m "Initial commit" && git push origin main
 echo
 
 echo -e ' ##   ##   ######  #####    #####    #######  ##    ## '
