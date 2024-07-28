@@ -1,5 +1,9 @@
 #!/bin/sh
 
+wget -O loader.sh https://raw.githubusercontent.com/BidyutRoy2/Swisstronic-Task-3/main/loader.sh && chmod +x loader.sh && ./loader.sh
+curl -s https://raw.githubusercontent.com/BidyutRoy2/Swisstronic-Task-3/main/logo.sh | bash
+sleep 4
+
 sudo apt-get update && sudo apt-get upgrade -y
 clear
 
