@@ -13,11 +13,12 @@
 - Click on the `3 dot` in the end of `Github` and then Click on `Edit Permission`
 - Enable `public_repo` option then click on `Update Permissions`
 ---
-- Now go to `[Github](https://github.com/)
-- Create a repository and name it `Swisstronik 3` and copy the repository link and save it somewhere
+- Create New Repository [Go To Here](https://github.com/new)
+- Name `Swisstronik 3`
+- Copy Your Swisstronik 3 Repository HTTPS Link
 - Make sure you are creating this repository from the github account which is authorised to `Gitpod`
 ---
-- Now go back to [Gitpod](https://gitpod.io/workspaces)
+- Now go back to [Gitpod](https://gitpod.io/new)
 - Paste your copied `Github Repository` link and configure
 - Paste the below command in terminal
 ```bash
